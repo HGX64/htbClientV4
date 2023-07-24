@@ -1,0 +1,438 @@
+#!/bin/bash 
+
+#Colours
+declare -r greenColour="\e[0;32m\033[1m"
+declare -r endColour="\033[0m\e[0m"
+declare -r redColour="\e[0;31m\033[1m"
+declare -r blueColour="\e[0;34m\033[1m"
+declare -r yellowColour="\e[0;33m\033[1m"
+declare -r purpleColour="\e[0;35m\033[1m"
+declare -r turquoiseColour="\e[0;36m\033[1m"
+declare -r grayColour="\e[0;37m\033[1m"
+
+declare -r url_all_machines="https://www.hackthebox.com/api/machines/get/all"
+declare -r active_machines="https://www.hackthebox.com/api/v4/machine/list"
+declare -r list_spawn_machines_url="https://www.hackthebox.com/api/machines/spawned"
+declare -r url_machine_profile="https://www.hackthebox.com/api/v4/machine/profile"
+declare -r send_flags_url="https://www.hackthebox.com/api/v4/machine/own"
+declare -r extend_machine_url="https://www.hackthebox.com/api/v4/vm/extend"
+declare -r assign_machine_url="https://www.hackthebox.com/api/vm/vip/assign"
+declare -r reset_machine_url="https://www.hackthebox.com/api/v4/vm/reset"
+declare -r terminate_machine_url="https://www.hackthebox.com/api/vm/vip/remove"
+declare -r JWT="" # Your JWT 
+declare -r api_token="" # Your API_TOKEN (old interface htb)
+
+trap ctrl_c INT
+
+if [ ! "$JWT" ] || [ ! "$api_token" ] ; then 
+  echo -e "\n${redColour}[!] Enter your JWT or your API_TOKEN into the code${endColour}\n"
+  exit 1
+fi
+
+tput civis;function ctrl_c(){
+  tput cnorm
+  echo -e "\n\n${redColour}[!] Exiting...\n${endColour}"
+  rm /tmp/spawned_machines.json /tmp/all_machines.json /tmp/owned_machines.json 2>/dev/null
+  exit 1
+}
+
+function printTable(){
+  local -r data="$@"
+  local -r machine_names=($(echo "$data" | jq -r '.[].name'))
+  local -r machine_ids=($(echo "$data" | jq -r '.[].id'))
+  local -r machine_ips=($(echo "$data" | jq -r '.[].ip'))
+  local -r machine_os=($(echo "$data" | jq -r '.[].os'))
+  local -r machine_rating=($(echo "$data" | jq -r '.[].rating'))
+  local -r machine_points=($(echo "$data" | jq -r '.[].points'))
+  local -r user_owns=($(echo "$data" | jq -r '.[].user_owns'))
+  local -r root_owns=($(echo "$data" | jq -r '.[].root_owns'))
+  local -r is_free=($(echo "$data"| jq -r '.[].free' | sed 's/true/Yes/' | sed 's/false/No/'))
+  local -r is_retired=($(echo "$data" | jq -r '.[].retired' | sed 's/true/Yes/' | sed 's/false/No/'))
+  local -r retired_date=($(echo "$data" | jq -r '.[].retired_date' | sed 's/null/Active/'))
+  local -r release_date=($(echo "$data" | jq -r '.[].release' | cut -d 'T' -f1))
+
+  # Obtener la longitud máxima de cada elemento
+  max_name_length=$(printf '%s\n' "${machine_names[@]}" | awk '{ print length }' | sort -rn | head -1)
+  max_id_length=3
+  max_ip_length=$(printf '%s\n' "${machine_ips[@]}" | awk '{ print length }' | sort -rn | head -1)
+  max_points_length=$(printf '%s\n' "${machine_points[@]}" | awk '{ print length }' | sort -rn | head -1)
+  max_user_owns_length=$(printf '%s\n' ${user_owns[@]} | awk '{ print length }' | sort -rn | head -1)
+  max_root_owns_length=$(printf '%s\n' ${root_owns[@]} | awk '{ print length }' | sort -rn | head -1)
+
+  if [ $max_user_owns_length  -lt 9 ] ; then 
+    max_user_owns_length=$(($max_user_owns_length + (9 - $max_user_owns_length)))
+  fi
+
+  if [ $max_root_owns_length -lt 9 ] ; then 
+    max_root_owns_length=$(($max_root_owns_length + (9 - $max_root_owns_length)))
+  fi
+
+  total_length=$(($max_name_length + $max_id_length + $max_ip_length + 16 + 6 + 6 + $max_user_owns_length + $max_root_owns_length + 4 + 7 + 20 + 11 + 30))
+
+  printf '%*s\n' "$total_length" | tr ' ' '-'
+
+  # Imprimir el encabezado
+  printf "| ${redColour}%-*s${endColour} | ${redColour}%-*s${endColour} | ${redColour}%-*s${endColour} | ${redColour}%-*s${endColour} | ${redColour}%-*s${endColour} | ${redColour}%-*s${endColour} | ${redColour}%-*s${endColour} | ${redColour}%-*s${endColour} | ${redColour}%-*s${endColour} | ${redColour}%-*s${endColour} | ${redColour}%-*s${endColour} | ${redColour}%-*s${endColour} |\n" \
+    "$max_name_length" "Name" \
+    "$max_id_length" "ID" \
+    "$max_ip_length" "Ip Address" \
+    16 "Operating system" \
+    6 "Rating" \
+    6 "Points" \
+    "$max_user_owns_length" "User Owns" \
+    "$max_root_owns_length" "Root Owns" \
+    4 "Free" \
+    7 "Retired" \
+    12 "Release Date" \
+    12 "Retired Date"
+
+  # Imprimir la línea de separación entre encabezado y datos
+  printf '%*s\n' "$total_length" | tr ' ' '-'
+  # Imprimir los datos
+  for ((i=0; i<${#machine_names[@]}; i++)); do
+    printf "| ${greenColour}%-*s${endColour} | ${greenColour}%-*s${endColour} | ${greenColour}%-*s${endColour} | ${greenColour}%-*s${endColour} | ${greenColour}%-*s${endColour} | ${greenColour}%-*s${endColour} | ${greenColour}%-*s${endColour} | ${greenColour}%-*s${endColour} | ${greenColour}%-*s${endColour} | ${greenColour}%-*s${endColour} | ${greenColour}%-*s${endColour} | ${greenColour}%-*s${endColour} |\n" \
+      "$max_name_length" "${machine_names[$i]}" \
+      "$max_id_length" "${machine_ids[$i]}" \
+      "$max_ip_length" "${machine_ips[$i]}" \
+      16 "${machine_os[$i]}" \
+      6 "${machine_rating[$i]}" \
+      6 "${machine_points[$i]}" \
+      "$max_user_owns_length" "${user_owns[$i]}" \
+      "$max_root_owns_length" "${root_owns[$i]}" \
+      4 "${is_free[$i]}" \
+      7 "${is_retired[$i]}" \
+      12 "${release_date[$i]}" \
+      12 "${retired_date[$i]}"
+  done
+
+  # Imprimir la línea inferior de la tabla
+  printf '%*s\n' "$total_length" | tr ' ' '-'
+
+}
+
+function listAllMachines(){
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json")"
+  printTable $output
+}
+
+function listActiveMachines(){
+  local -r output="$(curl -s -X GET "$active_machines" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq '[.info[] | {name: .name , id: .id , ip: .ip , os: .os , rating: .stars , points: .points , user_owns: .user_owns_count , root_owns: .root_owns_count , retired: "No" , free: .free , release: .release}]')"
+  printTable $output
+    
+}
+
+function listRetiredMachines(){
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq -r 'map(select(.retired != false ))')"
+  printTable $output
+}
+
+function listActiveLinuxMachines(){
+  local -r output="$(curl -s -X GET "$active_machines" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq '[.info[] | {name: .name , id: .id , ip: .ip , os: .os , rating: .stars , points: .points , user_owns: .user_owns_count , root_owns: .root_owns_count , retired: "No" , free: .free , release: .release}] | map(select(.os == "Linux"))')"
+  printTable $output
+}
+
+function listActiveWindowsMachines(){
+  local -r output="$(curl -s -X GET "$active_machines" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq '[.info[] | {name: .name , id: .id , ip: .ip , os: .os , rating: .stars , points: .points , user_owns: .user_owns_count , root_owns: .root_owns_count , retired: "No" , free: .free , release: .release}] | map(select(.os == "Windows"))')"
+  printTable $output
+}
+
+function listActiveOpenBSDMachines(){
+  local -r output="$(curl -s -X GET "$active_machines" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq '[.info[] | {name: .name , id: .id , ip: .ip , os: .os , rating: .stars , retired: "No" , free: .free , points: .points,release: .release}] | map(select(.os == "OpenBSD"))')"
+  printTable $output
+}
+
+function listActiveFreeBSDMachines(){
+  local -r output="$(curl -s -X GET "$active_machines" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq '[.info[] | {name: .name , id: .id , ip: .ip , os: .os , rating: .stars , points: .points , user_owns: .user_owns_count , root_owns: .root_owns_count , free: .free , retired: "No" , release: .release}] | map(select(.os == "FreeBSD"))')"
+  printTable $output
+}
+
+function listActiveSolarisMachines(){
+  local -r output="$(curl -s -X GET "$active_machines" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq '[.info[] | {name: .name , id: .id , ip: .ip , os: .os , rating: .stars , points: .points , user_owns: .user_owns_count , root_owns: .root_owns_count , free: .free , retired: "No" , release: .release}] | map(select(.os == "Solaris"))')"
+  printTable $output
+}
+
+function listActiveAndroidMachines(){
+  local -r output="$(curl -s -X GET "$active_machines" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq '[.info[] | {name: .name , id: .id , ip: .ip , os: .os , difficult: .difficultyText , points: .points , user_owns: .user_owns_count , root_owns: .root_owns_count , free: .free , retired: "No", release: .release}] | map(select(.os == "Android"))')"
+  printTable $output
+}
+
+function listRetiredLinuxMachines(){
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq 'map(select(.retired == true)) | map(select(.os == "Linux"))')"
+  printTable $output
+}
+
+function listRetiredWindowsMachines(){
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq 'map(select(.retired == true )) | map(select(.os == "Windows"))')"
+  printTable $output
+}
+
+function listRetiredOpenBSDMachines(){
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq 'map(select(.retired == true )) | map(select(.os == "OpenBSD"))')"
+  printTable $output
+}
+
+function listRetiredFreeBSDMachines(){
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq 'map(select(.retired == true )) | map(select(.os == "FreeBSD"))')"
+  printTable $output
+}
+
+function listRetiredSolarisMachines(){
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq 'map(select(.retired == true)) | map(select(.os == "Solaris"))')"
+  printTable $output
+}
+
+function listRetiredAndroidMachines(){
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq 'map(select(.retired == true)) | map(select(.os == "Android"))')"
+  printTable $output
+}
+
+function listOtherMachines(){
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq 'map(select(.os == "Other"))')"
+  printTable $output
+}
+
+function listOwnedMachines(){
+  local -r id_owned_machines=($(curl -s -X GET "https://www.hackthebox.com/api/machines/owns?api_token=$api_token" -H "Accept: application/json" | jq 'map((select(.owned_user == true))) | map(select(.owned_root == true)) | .[].id'))
+  curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" > /tmp/all_machines.json
+  
+  for id in ${id_owned_machines[@]} ; do 
+    cat /tmp/all_machines.json | jq "map(select(.id == $id))" >> /tmp/owned_machines.json
+  done
+
+  printTable $(cat /tmp/owned_machines.json)
+  rm -f /tmp/all_machines.json /tmp/owned_machines.json 2>/dev/null
+}
+
+function searchMachine(){
+  s_machine_text=$1
+  list="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json")"
+  printTable $list | sed -n "1,3p ; /$s_machine_text/Ip ; \$p"
+}
+
+function searchbyID(){
+  s_machine_id=$1 
+  list="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq "map(select(.id == $s_machine_id))" 2>/dev/null)"
+
+  if [ ! "$list" ] || [ "$(echo $list)" == "[]" ] ; then 
+    echo -e "\n\n${redColour}[!] Not found.${endColour}\n" 
+  else 
+    printTable $list
+  fi
+  
+
+}
+
+function deployMachines(){
+  local -r machine_name="$1"
+  local -r machine_id=$(curl -s -X GET "$url_machine_profile/$machine_name" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq -r ".info.id")
+  output=$(curl -s -X POST "$assign_machine_url/$machine_id?api_token=$api_token" -H "Accept: application/json" | jq -r '.status' 2>/dev/null)
+
+  if [ ! "$output" ] ; then 
+    echo -e "\n\n${yellowColour}[*]${endColour} ${grayColour}Machine deployed to lab.${endColour}\n"
+  else
+    echo -e "\n\n${yellowColour}[*]${endColour} ${grayColour}$output${endColour}\n"
+  fi
+
+}
+
+function extendMachine(){
+  local -r machine_id=$(curl -s -X GET "$url_machine_profile/$1" -H "Accept: applicatin/json" -H "Authorization: Bearer $JWT" | jq '.[].id')
+  output=$(curl -s -X POST "$extend_machine_url" -H "Accept: application/json" -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" -d "{\"machine_id\":$machine_id}" | jq -r '.message')
+  echo -e "\n\n$yellowColour[*]${endColour} ${grayColour}$output${endColour}\n"
+}
+
+function stopMachine(){
+  local -r machine_name="$1"
+  local -r machine_id=$(curl -s -X GET "$url_machine_profile/$machine_name" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq -r '.info.id')
+  output=$(curl -s -X POST "$terminate_machine_url/$machine_id?api_token=$api_token" -H "Accept: application/json" | jq -r '.status')
+
+  if [ "$output" == "The machine id field is required." ] ; then 
+    echo -e "\n\n${yellowColour}[!]${endColour} Invalid name.\n"
+  else
+    echo -e "\n\n${yellowColour}[*]${endColour} ${grayColour}$output${endColour}\n"
+  fi
+ 
+}
+
+function resetMachine(){
+  local -r machine_name="$1"
+  local -r machine_id=$(curl -s -X GET "$url_machine_profile/$machine_name" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq -r '.info.id')
+  output=$(curl -s -X POST $reset_machine_url -H "Accept: application/json" -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" -d "{\"machine_id\":$machine_id}" | jq -r '.message')
+
+  if [ "$output" == "The machine id field is required.,errors" ] ; then 
+    echo -e "\n\n${redColour}[!] Invalid name.${endColour}\n"
+  else
+    echo -e "\n\n${yellowColour}[*]${endColour} ${grayColour}$output${endColour}\n" 
+  fi
+}
+
+function sendFlags(){
+  local -r machine_name=$(echo "$1" | cut -d '=' -f1)
+  local -r machine_flag=$(echo "$1" | cut -d '=' -f2 | cut -d ',' -f1)
+  local -r machine_difficult=$(echo "$1" | cut -d ',' -f2)
+  machine_id=$(curl -s -X GET "$url_machine_profile/$machine_name" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq -r '.info.id')
+  output=$(curl -s -X POST $send_flags_url -H "Accept: application/json" -H "Authorization: Bearer $JWT" -H "Content-Type: application/json" -d "{\"flag\":\"$machine_flag\",\"id\":$machine_id,\"difficulty\":$machine_difficult}" | jq -r '.message')
+  
+  if [ "$(echo "$output" | sed -n '/"The flag field is required."/p' | sed -e 's/^\s*//' -e 's/;$//' | tr -d '"')" == "The flag field is required." ] ; then 
+    echo -e "\n\n${redColour}[!] Invalid format.${endColour}\n"
+  else 
+    echo -e "\n\n${yellowColour}[*]${endColour} ${grayColour}$output${endColour}\n"
+  fi
+
+}
+
+function listSpawnedMachines(){
+  local -r machines_id_spawned=($(curl -s -X GET "$list_spawn_machines_url?api_token=$api_token" -H "Accept: application/json" | jq -r '.[].id'))
+  curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" > /tmp/all_machines.json
+
+  for id in ${machines_id_spawned[@]} ; do 
+    cat /tmp/all_machines.json | jq -r "map(select(.id == $id))" >> /tmp/spawned_machines.json
+  done
+  
+  printTable $(cat /tmp/spawned_machines.json)
+  rm /tmp/spawned_machines.json /tmp/all_machines.json 2>/dev/null
+
+}
+
+
+function helpPanel(){
+  echo -e "\n${yellowColour}[-e]${endColour} ${grayColour}Enumeration Mode (List machines):${endColour}"
+  echo -e "\t${purpleColour}all_machines\n\tactive_machines\n\tactive_linux_machines\n\tactive_windows_machines\n\tactive_freebsd_machines\n\tactive_openbsd_machines\n\tactive_android_machines\n\tactive_solaris_machines\n\tretired_machines\n\tretired_linux_machines\n\tretired_windows_machines\n\tretired_freebsd_machines\n\tretired_openbsd_machines\n\tretired_android_machines\n\tretired_solaris_machines\n\tother_machines\n\tspawned_machines\n\towned_machines${endColour}"
+  echo -e "\n${yellowColour}[-s]${endColour} ${grayColour}Search Anything:${endColour}"
+  echo -e "\t${blueColour}Examples:${endColour}"
+  echo -e "\t\t${greenColour}$0 -s Lame${endColour}"
+  echo -e "\t\t${greenColour}$0 -s 145${endColour}"
+  echo -e "\t\t${greenColour}$0 -s 10.10.10.192${endColour}"
+  echo -e "\n${yellowColour}[-i]${endColour} ${grayColour}Search machine by ID${endColour}"
+  echo -e "\t${blueColour}Example:${endColour}"
+  echo -e "\t\t${greenColour}$0 -i 1${endColour}"
+  echo -e "\n${yellowColour}[-r]${endColour} ${grayColour}Reset Machine:${endColour}"
+  echo -e "\t${blueColour}Example:${endColour}"
+  echo -e "\t\t${greenColour}$0 -r Lame${endColour}"
+  echo -e "\n${yellowColour}[-d]${endColour} ${grayColour}Deploy Machine: ${redColour}[VIP]${endColour}${endColour}"
+  echo -e "\t${blueColour}Example:${endColour}"
+  echo -e "\t\t${greenColour}$0 -d Mischief${endColour}"
+  echo -e "\n${yellowColour}[-k]${endColour} ${grayColour}Stop Machine: ${redColour}[VIP]${endColour}${endColour}"
+  echo -e "\t${blueColour}Example:${endColour}"
+  echo -e "\t\t${greenColour}$0 -k Reddish${endColour}"
+  echo -e "\n${yellowColour}[-f]${endColour} ${grayColour}Submit Flag:${endColour}"
+  echo -e "\t${blueColour}Example:${endColour}"
+  echo -e "\t\t${greenColour}$0 -f Lame=1a79a4d60de6718e8e5b326e338ae533,<Machine difficult[10-100]>${endColour}"
+  echo -e "\t\t${greenColour}$0 -f Lame=1a79a4d60de6718e8e5b326e338ae533,30${endColour}"
+  echo -e "\n${yellowColour}[-x]${endColour} ${grayColour}Extend Machine: ${redColour}[VIP]${endColour}${endColour}"
+  echo -e "\t${blueColour}Example:${endColour}"
+  echo -e "\t\t${greenColour}$0 -x Sizzle${endColour}"
+}
+
+while getopts ":e:d:s:k:r:f:x:i:" arg ; do
+  case $arg in 
+    e)explorer_mode=$OPTARG;;
+    d)machine_to_spawn=$OPTARG;;
+    s)machine_text=$OPTARG;;
+    k)machine_to_stop=$OPTARG;;
+    r)machine_to_reset=$OPTARG;;
+    f)flag_text=$OPTARG;;
+    x)machine_to_extend=$OPTARG;;
+    i)machine_by_id=$OPTARG;;
+    h)helpPanel;;
+  esac
+done
+
+
+if [ $machine_to_spawn ] && [ $JWT ] && [ $api_token ] ; then 
+  deployMachines $machine_to_spawn
+  rm $tmp_file 2>/dev/null ; tput cnorm ; exit 0
+fi
+
+if [ $machine_text ] && [ $JWT ] && [ $api_token ] ; then 
+  searchMachine $machine_text
+  rm $tmp_file 2>/dev/null; tput cnorm; exit 0
+fi
+
+if [ $machine_by_id ] && [ $JWT ] && [ $api_token ] ; then 
+  searchbyID $machine_by_id ; tput cnorm ; exit 0
+fi
+
+if [ $machine_to_stop ] && [ $JWT ] && [ $api_token ] ; then 
+  stopMachine $machine_to_stop
+  rm $tmp_file 2>/dev/null; tput cnorm ; exit 0
+fi
+
+if [ $machine_to_reset ] && [ $JWT ] && [ $api_token ] ; then 
+  resetMachine $machine_to_reset
+  rm $tmp_file 2>/dev/null ; tput cnorm ; exit 0
+fi
+
+if [ $machine_to_extend ] && [ $JWT ] && [ $api_token ] ; then 
+  extendMachine $machine_to_extend
+  rm $tmp_file 2>/dev/null ; tput cnorm ; exit 0
+fi
+
+if [ $flag_text ] && [ $JWT ] && [ $api_token ] ; then 
+  sendFlags $flag_text
+  rm $tmp_file 2>/dev/null; tput cnorm; exit 0
+fi
+
+if [ $explorer_mode ] && [ $JWT ] && [ $api_token ] ; then 
+  if [ "$(echo $explorer_mode)" == "active_machines" ] ;then 
+    listActiveMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "retired_machines" ] ;then
+    listRetiredMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "active_linux_machines" ] ;then
+    listActiveLinuxMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "active_windows_machines" ];then
+    listActiveWindowsMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "active_openbsd_machines" ];then
+    listActiveOpenBSDMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "active_freebsd_machines" ];then
+    listActiveFreeBSDMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "active_solaris_machines" ];then
+    listActiveSolarisMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "active_android_machines" ];then
+    listActiveAndroidMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "retired_linux_machines" ];then
+    listRetiredLinuxMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "retired_windows_machines" ];then
+    listRetiredWindowsMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "retired_openbsd_machines" ];then
+    listRetiredOpenBSDMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "retired_freebsd_machines" ];then
+    listRetiredFreeBSDMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "retired_solaris_machines" ];then
+    listRetiredSolarisMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "retired_android_machines" ];then
+    listRetiredAndroidMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "all_machines" ] ;then
+    listAllMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "spawned_machines" ] ;then 
+    listSpawnedMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode)" == "other_machines" ];then 
+    listOtherMachines
+    rm $tmp_file 2>/dev/nul
+  elif [ "$(echo $explorer_mode)" == "owned_machines" ] ; then 
+    listOwnedMachines
+    rm $tmp_file 2>/dev/null
+  elif [ "$(echo $explorer_mode )" == "owned_active_machines" ];then 
+    listActiveOwnedMachines
+  fi
+else 
+  helpPanel
+fi
+
+tput cnorm
