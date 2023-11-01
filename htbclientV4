@@ -19,7 +19,7 @@ declare -r extend_machine_url="https://www.hackthebox.com/api/v4/vm/extend"
 declare -r assign_machine_url="https://www.hackthebox.com/api/vm/vip/assign"
 declare -r reset_machine_url="https://www.hackthebox.com/api/v4/vm/reset"
 declare -r terminate_machine_url="https://www.hackthebox.com/api/vm/vip/remove"
-declare -r JWT="" # Your JWT 
+declare -r JWT="" # Your Json Web Token
 declare -r api_token="" # Your API_TOKEN (old interface htb)
 
 trap ctrl_c INT
@@ -290,7 +290,29 @@ function listSpawnedMachines(){
   done
   
   printTable $(cat /tmp/spawned_machines.json)
-  rm /tmp/spawned_machines.json /tmp/all_machines.json 2>/dev/null
+  rm -f /tmp/spawned_machines.json /tmp/all_machines.json 2>/dev/null
+
+}
+
+function listPerDifficult(){
+  local -r machine_difficult="$1"
+  
+  if [ "$(echo $machine_difficult)" == "easy" ] ; then 
+    output=$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq -r 'map(select(.points == 20))')
+    printTable $output
+  
+  elif [ "$(echo $machine_difficult)" == "medium" ] ; then 
+    output=$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq -r 'map(select(.points == 30))')
+    printTable $output 
+  
+  elif [ "$(echo $machine_difficult)" == "hard" ] ; then 
+    output=$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq -r 'map(select(.points == 40))')
+    printTable $output
+
+  elif [ "$(echo $machine_difficult)" == "insane" ] ; then 
+    output=$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq -r 'map(select(.points == 50))')
+    printTable $output
+  fi
 
 }
 
@@ -322,9 +344,15 @@ function helpPanel(){
   echo -e "\n${yellowColour}[-x]${endColour} ${grayColour}Extend Machine: ${redColour}[VIP]${endColour}${endColour}"
   echo -e "\t${blueColour}Example:${endColour}"
   echo -e "\t\t${greenColour}$0 -x Sizzle${endColour}"
+  echo -e "\n${yellowColour}[-p]${endColour} ${grayColour} Search by difficult:${endColour}"
+  echo -e "\t${blueColour}Example:${endColour}"
+  echo -e "\t\t${greenColour}$0 -p easy${endColour}"
+  echo -e "\t\t${greenColour}$0 -p medium${endColour}"
+  echo -e "\t\t${greenColour}$0 -p hard${endColour}"
+  echo -e "\t\t${greenColour}$0 -p insane${endColour}"
 }
 
-while getopts ":e:d:s:k:r:f:x:i:" arg ; do
+while getopts ":e:d:s:k:r:f:x:i:p:" arg ; do
   case $arg in 
     e)explorer_mode=$OPTARG;;
     d)machine_to_spawn=$OPTARG;;
@@ -334,6 +362,7 @@ while getopts ":e:d:s:k:r:f:x:i:" arg ; do
     f)flag_text=$OPTARG;;
     x)machine_to_extend=$OPTARG;;
     i)machine_by_id=$OPTARG;;
+    p)machine_by_difficult=$OPTARG;;
     h)helpPanel;;
   esac
 done
@@ -371,6 +400,11 @@ fi
 if [ $flag_text ] && [ $JWT ] && [ $api_token ] ; then 
   sendFlags $flag_text
   rm $tmp_file 2>/dev/null; tput cnorm; exit 0
+fi
+
+if [ $machine_by_difficult ] && [ $JWT ] && [ $api_token ] ; then 
+  listPerDifficult $machine_by_difficult
+  rm $tmp_file 2>/dev/null ; tput cnorm ; exit 0
 fi
 
 if [ $explorer_mode ] && [ $JWT ] && [ $api_token ] ; then 
