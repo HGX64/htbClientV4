@@ -53,7 +53,7 @@ Con él podremos listar las máquinas desplegadas en el laboratorio de Hack The 
         style="float: left; margin-right: 10px;" />
 </p>
 
-Cambiarlos
+Si queremos ver las máquinas activas, también tenemos esa opción y las que se muestran en el panel de ayuda.
 <p align="center">
 <img src="Images/active_machines_file.png"
         alt="7"
