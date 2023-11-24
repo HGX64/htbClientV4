@@ -19,7 +19,7 @@ declare -r extend_machine_url="https://www.hackthebox.com/api/v4/vm/extend"
 declare -r assign_machine_url="https://www.hackthebox.com/api/vm/vip/assign"
 declare -r reset_machine_url="https://www.hackthebox.com/api/v4/vm/reset"
 declare -r terminate_machine_url="https://www.hackthebox.com/api/vm/vip/remove"
-declare -r JWT="" # Your Json Web Token
+declare -r JWT="" # Your JWT
 declare -r api_token="" # Your API_TOKEN (old interface htb)
 
 trap ctrl_c INT
@@ -116,7 +116,7 @@ function listAllMachines(){
 }
 
 function listActiveMachines(){
-  local -r output="$(curl -s -X GET "$active_machines" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq '[.info[] | {name: .name , id: .id , ip: .ip , os: .os , rating: .stars , points: .points , user_owns: .user_owns_count , root_owns: .root_owns_count , retired: "No" , free: .free , release: .release}]')"
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq -r 'map(select(.retired == false))')"
   printTable $output
     
 }
@@ -127,32 +127,32 @@ function listRetiredMachines(){
 }
 
 function listActiveLinuxMachines(){
-  local -r output="$(curl -s -X GET "$active_machines" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq '[.info[] | {name: .name , id: .id , ip: .ip , os: .os , rating: .stars , points: .points , user_owns: .user_owns_count , root_owns: .root_owns_count , retired: "No" , free: .free , release: .release}] | map(select(.os == "Linux"))')"
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq -r 'map(select(.retired == false)) | map(select(.os == "Linux"))')"
   printTable $output
 }
 
 function listActiveWindowsMachines(){
-  local -r output="$(curl -s -X GET "$active_machines" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq '[.info[] | {name: .name , id: .id , ip: .ip , os: .os , rating: .stars , points: .points , user_owns: .user_owns_count , root_owns: .root_owns_count , retired: "No" , free: .free , release: .release}] | map(select(.os == "Windows"))')"
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq -r 'map(select(.retired == false)) | map(select(.os == "Windows"))')"
   printTable $output
 }
 
 function listActiveOpenBSDMachines(){
-  local -r output="$(curl -s -X GET "$active_machines" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq '[.info[] | {name: .name , id: .id , ip: .ip , os: .os , rating: .stars , retired: "No" , free: .free , points: .points,release: .release}] | map(select(.os == "OpenBSD"))')"
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq -r 'map(select(.retired == false)) | map(select(.os == "OpenBSD"))')"
   printTable $output
 }
 
 function listActiveFreeBSDMachines(){
-  local -r output="$(curl -s -X GET "$active_machines" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq '[.info[] | {name: .name , id: .id , ip: .ip , os: .os , rating: .stars , points: .points , user_owns: .user_owns_count , root_owns: .root_owns_count , free: .free , retired: "No" , release: .release}] | map(select(.os == "FreeBSD"))')"
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq -r 'map(select(.retired == false)) | map(select(.os == "FreeBSD"))')"
   printTable $output
 }
 
 function listActiveSolarisMachines(){
-  local -r output="$(curl -s -X GET "$active_machines" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq '[.info[] | {name: .name , id: .id , ip: .ip , os: .os , rating: .stars , points: .points , user_owns: .user_owns_count , root_owns: .root_owns_count , free: .free , retired: "No" , release: .release}] | map(select(.os == "Solaris"))')"
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq -r 'map(select(.retired == false)) | map(select(.os == "Solaris"))')"
   printTable $output
 }
 
 function listActiveAndroidMachines(){
-  local -r output="$(curl -s -X GET "$active_machines" -H "Accept: application/json" -H "Authorization: Bearer $JWT" | jq '[.info[] | {name: .name , id: .id , ip: .ip , os: .os , difficult: .difficultyText , points: .points , user_owns: .user_owns_count , root_owns: .root_owns_count , free: .free , retired: "No", release: .release}] | map(select(.os == "Android"))')"
+  local -r output="$(curl -s -X GET "$url_all_machines?api_token=$api_token" -H "Accept: application/json" | jq -r 'map(select(.retired == false)) | map(select(.os == "Android"))')"
   printTable $output
 }
 
@@ -370,12 +370,12 @@ done
 
 if [ $machine_to_spawn ] && [ $JWT ] && [ $api_token ] ; then 
   deployMachines $machine_to_spawn
-  rm $tmp_file 2>/dev/null ; tput cnorm ; exit 0
+  tput cnorm ; exit 0
 fi
 
 if [ $machine_text ] && [ $JWT ] && [ $api_token ] ; then 
   searchMachine $machine_text
-  rm $tmp_file 2>/dev/null; tput cnorm; exit 0
+  tput cnorm; exit 0
 fi
 
 if [ $machine_by_id ] && [ $JWT ] && [ $api_token ] ; then 
@@ -384,84 +384,83 @@ fi
 
 if [ $machine_to_stop ] && [ $JWT ] && [ $api_token ] ; then 
   stopMachine $machine_to_stop
-  rm $tmp_file 2>/dev/null; tput cnorm ; exit 0
+  tput cnorm ; exit 0
 fi
 
 if [ $machine_to_reset ] && [ $JWT ] && [ $api_token ] ; then 
   resetMachine $machine_to_reset
-  rm $tmp_file 2>/dev/null ; tput cnorm ; exit 0
+  tput cnorm ; exit 0
 fi
 
 if [ $machine_to_extend ] && [ $JWT ] && [ $api_token ] ; then 
   extendMachine $machine_to_extend
-  rm $tmp_file 2>/dev/null ; tput cnorm ; exit 0
+  tput cnorm ; exit 0
 fi
 
 if [ $flag_text ] && [ $JWT ] && [ $api_token ] ; then 
   sendFlags $flag_text
-  rm $tmp_file 2>/dev/null; tput cnorm; exit 0
+  tput cnorm; exit 0
 fi
 
 if [ $machine_by_difficult ] && [ $JWT ] && [ $api_token ] ; then 
   listPerDifficult $machine_by_difficult
-  rm $tmp_file 2>/dev/null ; tput cnorm ; exit 0
+  tput cnorm ; exit 0
 fi
 
 if [ $explorer_mode ] && [ $JWT ] && [ $api_token ] ; then 
   if [ "$(echo $explorer_mode)" == "active_machines" ] ;then 
     listActiveMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "retired_machines" ] ;then
     listRetiredMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "active_linux_machines" ] ;then
     listActiveLinuxMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "active_windows_machines" ];then
     listActiveWindowsMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "active_openbsd_machines" ];then
     listActiveOpenBSDMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "active_freebsd_machines" ];then
     listActiveFreeBSDMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "active_solaris_machines" ];then
     listActiveSolarisMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "active_android_machines" ];then
     listActiveAndroidMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "retired_linux_machines" ];then
     listRetiredLinuxMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "retired_windows_machines" ];then
     listRetiredWindowsMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "retired_openbsd_machines" ];then
     listRetiredOpenBSDMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "retired_freebsd_machines" ];then
     listRetiredFreeBSDMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "retired_solaris_machines" ];then
     listRetiredSolarisMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "retired_android_machines" ];then
     listRetiredAndroidMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "all_machines" ] ;then
     listAllMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "spawned_machines" ] ;then 
     listSpawnedMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode)" == "other_machines" ];then 
     listOtherMachines
-    rm $tmp_file 2>/dev/nul
   elif [ "$(echo $explorer_mode)" == "owned_machines" ] ; then 
     listOwnedMachines
-    rm $tmp_file 2>/dev/null
+    
   elif [ "$(echo $explorer_mode )" == "owned_active_machines" ];then 
     listActiveOwnedMachines
   fi
