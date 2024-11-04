@@ -2,6 +2,9 @@
 
 **htbclientV4** es una herramienta que funciona como un cliente de terminal basado en el de [s4vitar](https://github.com/s4vitar), pero usando algunos elementos de la version 4 de la api de Hackthebox.
 
+[Translate](https://translate.google.com/translate?hl=en&sl=es&u=https://hgx64.github.io/htbClientV4)
+
+
 ¿Cómo me autentico?
 ======
 Lo primero que debemos hacer es dirigirnos a la nueva interfaz de [Hack The Box](https://www.hackthebox.com). Una vez iniciada la sesión, tendremos que dirigirnos a los ajustes de nuestro perfil. Crearemos un nuevo "JSON Web Token" (los JSON Web Token tienen una "fecha de caducidad", por así decirlo, por eso deberemos elegir 1 año de validez). De todas formas, he creado un pequeño script en Python que podéis usar si queréis renovarlo cada poco, pero recomiendo hacerlo desde la web y añadir 1 año de validez. Recordad verificar la validez del JWT si veis que no funciona la herramienta.
