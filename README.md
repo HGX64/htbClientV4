@@ -90,9 +90,15 @@ Para enviar la flag usaremos el siguiente método:
 * Esta herramienta no es tan completa como la de s4vitar, pero en algunos aspectos es más rápida debido a la combinación de ambas versiones de la API de Hack The Box.
 
 ## Redes sociales de s4vitar y enlace a su academia
-[Youtube](https://www.youtube.com/s4vitar)
-[Instragram](https://www.instagram.com/s4vitarx/)
-[Twitter](https://twitter.com/S4vitar)
-[Linkedin](https://es.linkedin.com/in/s4vitar)
+
+[Youtube](https://www.youtube.com/s4vitar)  
+
+[Instagram](https://www.instagram.com/s4vitarx/)  
+
+[Twitter](https://twitter.com/S4vitar)  
+
+[Linkedin](https://es.linkedin.com/in/s4vitar)  
+
 [Academia](https://hack4u.io/)
+
 
