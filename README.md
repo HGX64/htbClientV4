@@ -1,5 +1,9 @@
 # htbClientV4
 
+***Language***
+- [🇪🇸 Español](./README.es.md)
+- 🇺🇸 English
+
 **htbclientV4** is a tool that functions as a terminal-based client inspired by [s4vitar](https://github.com/s4vitar), but using some elements from version 4 of the Hackthebox API.
 
 ## How do I authenticate?
