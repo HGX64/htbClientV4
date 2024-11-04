@@ -2,8 +2,6 @@
 
 **htbclientV4** es una herramienta que funciona como un cliente de terminal basado en el de [s4vitar](https://github.com/s4vitar), pero usando algunos elementos de la version 4 de la api de Hackthebox.
 
-[Translate](https://translate.google.com/translate?hl=en&sl=es&u=https://hgx64.github.io/htbClientV4)
-
 
 ¿Cómo me autentico?
 ======
