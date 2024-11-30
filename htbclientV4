@@ -11,14 +11,14 @@ declare -r turquoiseColour="\e[0;36m\033[1m"
 declare -r grayColour="\e[0;37m\033[1m"
 
 declare -r url_all_machines="https://www.hackthebox.com/api/machines/get/all"
-declare -r active_machines="https://www.hackthebox.com/api/v4/machine/list"
+declare -r active_machines="https://labs.hackthebox.com/api/v4/machine/list"
 declare -r list_spawn_machines_url="https://www.hackthebox.com/api/machines/spawned"
 declare -r url_machine_profile="https://www.hackthebox.com/api/v4/machine/profile"
 declare -r send_flags_url="https://www.hackthebox.com/api/v4/machine/own"
 declare -r extend_machine_url="https://www.hackthebox.com/api/v4/vm/extend"
 declare -r assign_machine_url="https://www.hackthebox.com/api/vm/vip/assign"
 declare -r reset_machine_url="https://www.hackthebox.com/api/v4/vm/reset"
-declare -r terminate_machine_url="https://www.hackthebox.com/api/vm/vip/remove"
+declare -r terminate_machine_url="https://labs.hackthebox.com/api/v4/vm/terminate"
 declare -r JWT="" # Your JWT
 declare -r api_token="" # Your API_TOKEN (old interface htb)
 
